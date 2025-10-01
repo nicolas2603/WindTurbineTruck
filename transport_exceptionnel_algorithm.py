@@ -26,7 +26,8 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProcessingException,
     QgsGeometryUtils,
-    QgsVector
+    QgsVector,
+    QgsFeatureSink
 )
 from qgis import processing
 import numpy as np
@@ -369,15 +370,14 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
         if envelope_geom is None or envelope_geom.isEmpty():
             feedback.pushWarning("Enveloppe vide - problème de génération")
         else:
-            envelope_feat = QgsFeature()
-            envelope_feat.setFields(envelope_fields)
+            envelope_feat = QgsFeature(envelope_fields)
             envelope_feat.setGeometry(envelope_geom)
             envelope_feat.setAttributes([
                 blade_type,
                 max([r['dynamic_half_width_m'] for r in results]) * 2,
                 stations_dist[-1]
             ])
-            if not envelope_sink.addFeature(envelope_feat):
+            if not envelope_sink.addFeature(envelope_feat, QgsFeatureSink.FastInsert):
                 feedback.pushWarning("Échec de l'ajout de l'enveloppe")
             else:
                 feedback.pushInfo(f"Enveloppe créée: {envelope_feat.geometry().area():.1f} m²")
@@ -401,8 +401,7 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f"Ajout de {len(results)} stations...")
         features_added = 0
         for r in results:
-            feat = QgsFeature()
-            feat.setFields(stations_fields)
+            feat = QgsFeature(stations_fields)
             feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(r['x'], r['y'])))
             feat.setAttributes([
                 r['station'],
@@ -411,7 +410,7 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
                 'OK' if r['clearance_ok'] else 'OBSTACLE',
                 r['dynamic_half_width_m'] * 2
             ])
-            if stations_sink.addFeature(feat):
+            if stations_sink.addFeature(feat, QgsFeatureSink.FastInsert):
                 features_added += 1
         
         feedback.pushInfo(f"{features_added}/{len(results)} stations ajoutées")
@@ -433,8 +432,7 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
             if obstacles_sink is not None:
                 feedback.pushInfo(f"Ajout de {len(conflicts)} obstacles...")
                 for c in conflicts:
-                    feat = QgsFeature()
-                    feat.setFields(obstacles_fields)
+                    feat = QgsFeature(obstacles_fields)
                     feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(c['x'], c['y'])))
                     feat.setAttributes([
                         c['station'],
@@ -442,7 +440,7 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
                         c['max_height_m'],
                         c['exceedance_m']
                     ])
-                    obstacles_sink.addFeature(feat)
+                    obstacles_sink.addFeature(feat, QgsFeatureSink.FastInsert)
         
         # Export CSV et rapport
         feedback.setProgress(90)
@@ -455,10 +453,10 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
         
         feedback.pushInfo(f"\n{'='*60}")
         if len(conflicts) == 0:
-            feedback.pushInfo("✓ RÉSULTAT: PASSAGE POSSIBLE")
-            feedback.pushInfo("  Aucun obstacle détecté")
+            feedback.pushInfo("RESULTAT: PASSAGE POSSIBLE")
+            feedback.pushInfo("  Aucun obstacle detecte")
         else:
-            feedback.pushInfo(f"✗ RÉSULTAT: {len(conflicts)} OBSTACLES DÉTECTÉS")
+            feedback.pushInfo(f"RESULTAT: {len(conflicts)} OBSTACLES DETECTES")
             feedback.pushInfo(f"  Hauteur max: {max([c['max_height_m'] for c in conflicts]):.2f}m")
         feedback.pushInfo(f"{'='*60}\n")
         
@@ -599,7 +597,6 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
             
         except ImportError:
             # Si shapely n'est pas disponible, utiliser un buffer simple QGIS
-            # Créer une ligne à partir des stations
             line_points = [QgsPoint(s.x(), s.y()) for s in stations]
             line_geom = QgsGeometry.fromPolyline(line_points)
             
@@ -628,7 +625,7 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
         """Génère le rapport texte"""
         with open(path, 'w', encoding='utf-8') as f:
             f.write("="*70 + "\n")
-            f.write("RAPPORT D'ANALYSE - TRANSPORT EXCEPTIONNEL ÉOLIENNES\n")
+            f.write("RAPPORT D'ANALYSE - TRANSPORT EXCEPTIONNEL EOLIENNES\n")
             f.write("="*70 + "\n\n")
             
             f.write(f"Type de pale: {blade_type}\n")
@@ -636,20 +633,20 @@ class TransportExceptionnelAlgorithm(QgsProcessingAlgorithm):
             f.write(f"Largeur de base: {specs['Width']}m\n")
             f.write(f"Hauteur requise: < {height_required}m\n\n")
             
-            f.write(f"Longueur totale tracé: {total_length:.1f}m\n")
+            f.write(f"Longueur totale trace: {total_length:.1f}m\n")
             f.write(f"Nombre de stations: {len(results)}\n\n")
             
             max_width = max([r['dynamic_half_width_m'] * 2 for r in results])
             f.write(f"Largeur maximale requise: {max_width:.2f}m\n\n")
             
             if len(conflicts) == 0:
-                f.write("✓ RÉSULTAT: PASSAGE POSSIBLE\n")
-                f.write("Aucun obstacle détecté.\n")
+                f.write("RESULTAT: PASSAGE POSSIBLE\n")
+                f.write("Aucun obstacle detecte.\n")
             else:
-                f.write(f"✗ RÉSULTAT: {len(conflicts)} OBSTACLES DÉTECTÉS\n\n")
-                f.write("DÉTAIL DES OBSTACLES:\n")
+                f.write(f"RESULTAT: {len(conflicts)} OBSTACLES DETECTES\n\n")
+                f.write("DETAIL DES OBSTACLES:\n")
                 for i, c in enumerate(conflicts[:20], 1):
                     f.write(f"\n  Obstacle #{i}:\n")
                     f.write(f"    PK: {c['distance_m']/1000:.3f} km\n")
                     f.write(f"    Hauteur: {c['max_height_m']:.2f}m\n")
-                    f.write(f"    Dépassement: +{c['exceedance_m']:.2f}m\n")
+                    f.write(f"    Depassement: +{c['exceedance_m']:.2f}m\n")

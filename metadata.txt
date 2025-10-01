@@ -26,7 +26,7 @@ tags=transport, éolienne, lidar, mnh, gabarit, convoi exceptionnel
 
 homepage=https://github.com/votre-repo
 category=Analysis
-icon=icon.png
+icon=wind-turbine.svg
 experimental=False
 deprecated=False
 

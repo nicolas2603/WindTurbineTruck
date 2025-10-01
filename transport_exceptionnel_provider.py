@@ -29,7 +29,7 @@ class TransportExceptionnelProvider(QgsProcessingProvider):
     
     def icon(self):
         """Icône du provider"""
-        return QIcon(os.path.join(os.path.dirname(__file__), 'icon.png'))
+        return QIcon(os.path.join(os.path.dirname(__file__), 'wind-turbine.svg'))
     
     def longName(self):
         """Nom long du provider"""

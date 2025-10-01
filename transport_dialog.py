@@ -14,6 +14,8 @@ from qgis.core import (
     QgsVectorLayer, QgsRasterLayer
 )
 import processing
+import tempfile
+import os
 
 
 class TransportDialog(QDialog):
@@ -136,7 +138,10 @@ class TransportDialog(QDialog):
         if confirm != QMessageBox.Yes:
             return
         
-        # Préparation des paramètres pour l'algorithme Processing
+        # Créer un dossier temporaire pour les sorties
+        temp_dir = tempfile.gettempdir()
+        
+        # Préparation des paramètres avec fichiers shapefile
         params = {
             'INPUT_TRACE': trace_layer,
             'INPUT_MNH': mnh_layer,
@@ -144,11 +149,11 @@ class TransportDialog(QDialog):
             'HEIGHT_REQUIRED': 5.0,
             'TRANSECT_SPACING': 1.0,
             'SAMPLE_POINTS': 9,
-            'OUTPUT_ENVELOPE': 'memory:envelope',
-            'OUTPUT_STATIONS': 'memory:stations',
-            'OUTPUT_OBSTACLES': 'memory:obstacles',
-            'OUTPUT_CSV': 'TEMPORARY_OUTPUT',
-            'OUTPUT_REPORT': 'TEMPORARY_OUTPUT'
+            'OUTPUT_ENVELOPE': os.path.join(temp_dir, 'envelope_transport.shp'),
+            'OUTPUT_STATIONS': os.path.join(temp_dir, 'stations_transport.shp'),
+            'OUTPUT_OBSTACLES': os.path.join(temp_dir, 'obstacles_transport.shp'),
+            'OUTPUT_CSV': os.path.join(temp_dir, 'rapport_transport.csv'),
+            'OUTPUT_REPORT': os.path.join(temp_dir, 'rapport_transport.txt')
         }
         
         try:
@@ -158,26 +163,46 @@ class TransportDialog(QDialog):
                 params
             )
             
-            # Ajout des couches résultantes au projet
-            if result.get('OUTPUT_ENVELOPE'):
-                envelope_layer = result['OUTPUT_ENVELOPE']
-                QgsProject.instance().addMapLayer(envelope_layer)
+            # Charger les shapefiles créés
+            envelope = QgsVectorLayer(result['OUTPUT_ENVELOPE'], 'Enveloppe dynamique', 'ogr')
+            stations = QgsVectorLayer(result['OUTPUT_STATIONS'], 'Stations d\'analyse', 'ogr')
             
-            if result.get('OUTPUT_STATIONS'):
-                stations_layer = result['OUTPUT_STATIONS']
-                QgsProject.instance().addMapLayer(stations_layer)
+            layers_added = 0
+            msg = "Analyse terminée !\n\n"
             
-            if result.get('OUTPUT_OBSTACLES'):
-                obstacles_layer = result['OUTPUT_OBSTACLES']
-                QgsProject.instance().addMapLayer(obstacles_layer)
+            # Ajouter l'enveloppe
+            if envelope.isValid() and envelope.featureCount() > 0:
+                QgsProject.instance().addMapLayer(envelope)
+                msg += f"✓ Enveloppe : {envelope.featureCount()} entité(s)\n"
+                layers_added += 1
+            else:
+                msg += "⚠ Enveloppe : vide ou invalide\n"
+            
+            # Ajouter les stations
+            if stations.isValid() and stations.featureCount() > 0:
+                QgsProject.instance().addMapLayer(stations)
+                msg += f"✓ Stations : {stations.featureCount()} entité(s)\n"
+                layers_added += 1
+            else:
+                msg += "⚠ Stations : vide ou invalide\n"
+            
+            # Ajouter les obstacles si présents
+            if result.get('OUTPUT_OBSTACLES') and os.path.exists(result['OUTPUT_OBSTACLES']):
+                obstacles = QgsVectorLayer(result['OUTPUT_OBSTACLES'], 'Obstacles détectés', 'ogr')
+                if obstacles.isValid() and obstacles.featureCount() > 0:
+                    QgsProject.instance().addMapLayer(obstacles)
+                    msg += f"✓ Obstacles : {obstacles.featureCount()} entité(s)\n"
+                    layers_added += 1
+                else:
+                    msg += "✓ Obstacles : aucun\n"
+            else:
+                msg += "✓ Obstacles : aucun\n"
+            
+            msg += f"\n{layers_added} couche(s) ajoutée(s) au projet"
+            msg += f"\n\nRapports générés dans :\n{temp_dir}"
             
             # Message de succès
-            QMessageBox.information(
-                self,
-                "Succès",
-                "Analyse terminée !\n\n"
-                "Les couches résultantes ont été ajoutées au projet."
-            )
+            QMessageBox.information(self, "Succès", msg)
             
             # Fermer le dialogue
             self.accept()
@@ -186,8 +211,15 @@ class TransportDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Erreur",
-                f"Erreur lors de l'analyse :\n\n{str(e)}"
+                f"Erreur lors de l'analyse :\n\n{str(e)}\n\n"
+                f"Vérifiez :\n"
+                f"- Le tracé couvre bien la zone du MNH\n"
+                f"- Les CRS sont compatibles\n"
+                f"- Le MNH contient des données valides"
             )
+            import traceback
+            print("Trace complète de l'erreur :")
+            traceback.print_exc()
 
 
 def show_transport_dialog():

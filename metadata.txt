@@ -1,0 +1,41 @@
+[general]
+name=Transport Exceptionnel Éoliennes
+qgisMinimumVersion=3.0
+description=Analyse la faisabilité du transport de pales d'éoliennes avec calcul du gabarit dynamique
+version=1.0.0
+author=Votre Nom
+email=votre.email@example.com
+
+about=Ce plugin analyse la faisabilité d'un transport exceptionnel de pales d'éoliennes en utilisant des données LIDAR (MNH). Il calcule l'enveloppe dynamique du gabarit prenant en compte le balayage dans les virages, détecte les obstacles en hauteur, et génère des rapports détaillés.
+
+tracker=https://github.com/votre-repo/issues
+repository=https://github.com/votre-repo
+# End of mandatory metadata
+
+# Recommended items:
+hasProcessingProvider=yes
+changelog=
+    1.0.0 - Version initiale
+    - Calcul du gabarit dynamique avec balayage
+    - Support des pales N117, N131, N149, E82
+    - Génération d'enveloppe par buffers
+    - Export CSV et rapports
+
+# Tags are comma separated with spaces allowed
+tags=transport, éolienne, lidar, mnh, gabarit, convoi exceptionnel
+
+homepage=https://github.com/votre-repo
+category=Analysis
+icon=icon.png
+experimental=False
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+category=Analysis
+
+# If the plugin can run on QGIS Server.
+server=False
